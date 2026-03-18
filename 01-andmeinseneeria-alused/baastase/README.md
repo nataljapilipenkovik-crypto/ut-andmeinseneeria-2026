@@ -25,7 +25,7 @@ Praktikumi põhiosa koosneb neljast etapist:
 - tabeli loomine ja CSV-faili laadimine;
 - tulemuse kontrollimine.
 
-## Enne alustamist
+## Eeldused
 
 Vaja on:
 
@@ -39,6 +39,16 @@ Dockeri paigaldusjuhendid:
 - Windowsi paigaldusjuhend: <https://docs.docker.com/desktop/setup/install/windows-install/>
 - macOS-i paigaldusjuhend: <https://docs.docker.com/desktop/setup/install/mac-install/>
 
+Kui Docker on juba paigaldatud, siis kontrolli enne praktikumi alustamist, et see oleks käivitatud.
+
+## Miks see teema on oluline
+
+Andmeinseneeria töö algab väga tihti lihtsast olukorrast: keegi annab sulle faili ja ootab, et sa oskaksid selle turvaliselt ning kontrollitavalt andmebaasi laadida.
+
+See oskus on vajalik enne peaaegu kõiki järgmisi samme. Enne kui saad andmeid puhastada, pärida, siduda või torustikku lisada, pead oskama keskkonna käivitada, andmebaasiga ühenduse luua ja kontrollida, et andmed jõudsid õigesse kohta.
+
+Praktikumi mõttes on see esimene täielik tööahel. Tööelus on see võrreldav olukorraga, kus saad näiteks CSV-väljavõtte mõnest ärisüsteemist ja pead selle analüüsi või edasise töötlemise jaoks andmebaasi sisse lugema.
+
 ## Praktikumi failid
 
 - [`compose.yml`](./compose.yml) kirjeldab andmebaasi konteinerit
@@ -51,40 +61,74 @@ Dockeri paigaldusjuhendid:
 
 ## Uued mõisted
 
+Selles praktikumis moodustavad uued mõisted ühe tööahela. Kõigepealt käivitame valmis aluse põhjal andmebaasi konteineri, seome sellele vajalikud failid, ühendume käsurealt andmebaasiga ja laadime CSV-faili tabelisse.
+
 ### Docker image
 
-Valmis alus, mille põhjal konteiner käivitatakse.
+Kui tahame, et kõigil õppijatel oleks võimalikult ühesugune keskkond, ei ole mõistlik andmebaasi iga arvuti peal käsitsi nullist seadistada.
+
+Docker image on valmis alus, mille põhjal konteiner käivitatakse.
+
+Selles praktikumis kasutame pilti `pgduckdb/pgduckdb:18-v1.1.1`.
 
 ### Konteiner
 
-Töötav eraldatud keskkond. Selles praktikumis töötab PostgreSQL konteineris.
+Andmebaasi on vaja kusagil päriselt käivitada.
+
+Konteiner on töötav eraldatud keskkond, mis käivitatakse image'i põhjal.
+
+Selles praktikumis töötab andmebaas Dockeri konteineris teenusena `db`.
 
 ### Docker volume
 
-Dockeri mahuühendus seob konteineri mõne hosti kausta või püsiva andmeruumiga. Selles praktikumis on meil kaks tüüpilist näidet:
+Kui tahame, et andmed ei kaoks konteineri peatamisel ja et failid oleksid konteineri jaoks nähtavad, on vaja konteineri ja hosti vahele püsivat seost.
+
+Dockeri mahuühendus seob konteineri mõne hosti kausta või püsiva andmeruumiga.
+
+Selles praktikumis on meil kaks tüüpilist näidet:
 
 - `pgdata:/var/lib/postgresql` hoiab andmebaasi andmed alles
 - `./data:/data` teeb hosti `./data` kausta konteineri sees nähtavaks
 
 ### Docker network
 
-Dockeri sisevõrk, mille kaudu konteinerid omavahel suhtlevad. Selles praktikumis ei pea me seda veel eraldi seadistama, aga `docker compose` loob selle taustal automaatselt.
+Kui rakenduses on mitu konteinerit, peavad need omavahel suhtlema.
+
+Docker network on Dockeri sisevõrk, mille kaudu konteinerid omavahel suhtlevad.
+
+Selles praktikumis ei pea me seda veel eraldi seadistama, aga `docker compose` loob vajaliku sisevõrgu taustal automaatselt.
 
 ### PostgreSQL
 
-Levinud relatsiooniline andmebaas. Selles praktikumis kasutame seda SQL-päringute ja CSV-andmete laadimise jaoks.
+Meil on vaja kohta, kuhu tabel luua ja kuhu CSV-andmed sisse laadida.
+
+PostgreSQL on levinud relatsiooniline andmebaas, mis salvestab andmeid tabelitena ja lubab neid SQL-iga pärida.
+
+Selles praktikumis loome sinna tabeli `countries` ja laadime sinna esimese andmestiku.
 
 ### `psql`
 
-PostgreSQL käsurea klient. Selle kaudu saame andmebaasiga ühenduse luua ja SQL-i käivitada.
+Andmebaasist üksi ei piisa. Vaja on ka tööriista, millega sinna sisse vaadata ja käske käivitada.
+
+`psql` on PostgreSQL käsurea klient. Selle kaudu saame andmebaasiga ühenduse luua ja SQL-i käivitada.
+
+Selles praktikumis ühendume käsuga `docker compose exec db psql -U praktikum -d praktikum`.
 
 ### CSV
 
-Lihtne tekstifail tabelandmete jaoks. Olulised omadused on päis, eraldaja ja kodeering.
+Andmed liiguvad väga sageli süsteemide vahel lihtsa failina.
+
+CSV on tekstifail tabelandmete jaoks. Olulised omadused on päis, eraldaja ja kodeering.
+
+Selles praktikumis kasutame faili `data/countries.csv`.
 
 ### `COPY`
 
-PostgreSQL käsk, mis loeb faili ja laadib selle sisu tabelisse.
+Kui andmeridu on rohkem kui paar, ei sisestata neid tavaliselt käsitsi ükshaaval.
+
+`COPY` on PostgreSQL käsk, mis loeb faili ja laadib selle sisu tabelisse.
+
+Selles praktikumis loeme käsuga `COPY` andmed failist `/data/countries.csv` tabelisse `countries`.
 
 ## Tähtis vahe: host ja konteiner
 
