@@ -545,6 +545,10 @@ Loo fail `models/marts/post_activity_daily.sql`, mis arvutab iga kasutaja postit
 - Kuidas käsitleksid hilinevaid andmeid (andmed, mis saabuvad hiljem, aga kuuluvad varasemasse perioodi)?
 - Mis on liitvõtme ja ühe veeru põhise võtme unikaalsuse (unique_key) erinevus?
 
+### Näidislahendus
+
+`ylesanne1_post_activity_daily.sql`
+
 ---
 
 ## Ülesanne 2: dbt testid ja andmekvaliteet (~15 min)
@@ -594,6 +598,12 @@ docker compose exec dbt dbt test --select fct_posts
 - Millal peaks test andma hoiatuse (WARN) ja millal vea (FAIL)?
 - Kuidas käsitleksid testide ebaõnnestumist tootmiskeskkonnas?
 - Miks on mõttekas testida marts kihis, mitte ainult staging kihis?
+
+### Näidislahendus
+
+`ylesanne2_assert_no_orphan_posts.sql`  
+ja
+`ylesanne2_schema.yml___` (asenda samas kaustas oleva `schema.yml`-ga)
 
 ---
 
@@ -646,6 +656,10 @@ Kasutajad, kelle aadressi demo ajal muutsime, peaksid näitama nii `current_city
 - Miks on see muster (dimensioon + meetrikad + ajalugu) ärianalüüsis nii levinud?
 - Mis juhtub, kui snapshot-tabel kustutatakse ja luuakse uuesti? Mida kaotame?
 - Kas see raport peaks olema `view` või `table`? Mis on kompromissid?
+
+### Näidislahendus
+
+`ylesanne3_user_activity_report.sql` 
 
 ---
 
