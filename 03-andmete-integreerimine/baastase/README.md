@@ -17,9 +17,9 @@
 - [2. Loo `.env` fail](#2-loo-env-fail)
 - [3. Käivita konteinerid](#3-käivita-konteinerid)
 - [4. Vaata üle põhiallikad](#4-vaata-üle-põhiallikad)
-- [5. Loo skeemid ja tabelid](#5-loo-skeemid-ja-tabelid)
+- [5. Loo skeemid, tabelid ja vaated](#5-loo-skeemid-tabelid-ja-vaated)
 - [6. Laadi CSV-fail staging-tabelisse](#6-laadi-csv-fail-staging-tabelisse)
-- [7. Vaata valmis ETL-skripti](#7-vaata-valmis-etl-skripti)
+- [7. Vaata valmis ETL-skripti ja vaateid](#7-vaata-valmis-etl-skripti-ja-vaateid)
 - [8. Käivita ETL](#8-kaivita-etl)
 - [9. Kontrolli tulemust SQL-iga](#9-kontrolli-tulemust-sql-iga)
 - [10. Kontrolli idempotentsust](#10-kontrolli-idempotentsust)
@@ -181,14 +181,14 @@ Kõik allpool toodud suhtelised failiteed eeldavad, et asud kaustas `03-andmete-
 - [`data/kasutaja_staatus.csv`](./data/kasutaja_staatus.csv) on põhiraja `CSV` allikas
 - [`data/teavituseelistused.json`](./data/teavituseelistused.json) on lisaülesande `JSON` allikas
 - [`data/kasutaja_rikastus.parquet`](./data/kasutaja_rikastus.parquet) on lisaülesande `Parquet` snapshot
-- [`scripts/01_create_tables.sql`](./scripts/01_create_tables.sql) loob põhiraja skeemid ja tabelid
+- [`scripts/01_create_tables.sql`](./scripts/01_create_tables.sql) loob põhiraja skeemid, tabelid ja `intermediate` vaated
 - [`scripts/02_load_user_status.sql`](./scripts/02_load_user_status.sql) laadib `CSV` faili `staging` tabelisse
 - [`scripts/03_check_staging.sql`](./scripts/03_check_staging.sql) aitab staging-andmeid kontrollida
-- [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py) on valmis kahe allika `ETL` skript koos Pythoni süntaksit selgitavate kommentaaridega
-- [`scripts/04_check_results.sql`](./scripts/04_check_results.sql) sisaldab lõppkontrolli päringuid
-- [`scripts/lisa_01_prepare_preferences.sql`](./scripts/lisa_01_prepare_preferences.sql) valmistab lisaülesande jaoks ette kolmanda allika tabeli ja lisaväljad
-- [`scripts/lisa_03_integrate_users_template.py`](./scripts/lisa_03_integrate_users_template.py) on lisaülesande mall kolme allika ühendamiseks
-- [`scripts/lisa_04_check_join_keys.py`](./scripts/lisa_04_check_join_keys.py) sisaldab abifunktsioone ühendusvõtmete sobivuse kontrolliks
+- [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py) loeb `API` kasutajad sisse, laadib need `staging` kihti ja täidab lõpptabeli `intermediate` vaate kaudu
+- [`scripts/04_check_results.sql`](./scripts/04_check_results.sql) kontrollib `staging`, `intermediate` ja `analytics` kihi tulemusi
+- [`scripts/lisa_01_prepare_preferences.sql`](./scripts/lisa_01_prepare_preferences.sql) valmistab lisaülesande jaoks ette kolmanda allika tabeli, vaate ja lõppväljad
+- [`scripts/lisa_03_integrate_users_template.py`](./scripts/lisa_03_integrate_users_template.py) on lisaülesande mall kolme allika voole `staging -> intermediate -> analytics`
+- [`scripts/lisa_04_check_join_keys.py`](./scripts/lisa_04_check_join_keys.py) kontrollib, kas `staging` tabelite võtmed sobituvad
 - [`scripts/lisa_05_preview_parquet.sql`](./scripts/lisa_05_preview_parquet.sql) näitab, kuidas `Parquet` failist otse pärida
 - [`scripts/lisa_07_load_loyalty_snapshot.sql`](./scripts/lisa_07_load_loyalty_snapshot.sql) loob `Parquet` snapshot'i põhjal staging-vaate
 - [`scripts/lisa_08_check_loyalty_snapshot.sql`](./scripts/lisa_08_check_loyalty_snapshot.sql) kontrollib staging-vaate ja lõpptabeli seost
@@ -269,6 +269,16 @@ Edasijõudnute rajal jääb `staging` samuti allikalähedaseks kihiks, kuid sell
 
 Selles baastaseme praktikumis kasutame lõppkihi kohta nime `analytics`. Mõnes teises projektis või edasijõudnute rajal võib sama lõppkihti kohata nimega `marts`. Need tähistavad sisuliselt sama kihti; ühe projekti sees tasub siiski hoida terminid ühtlasena.
 
+### `Intermediate`
+
+`Intermediate` on vahekiht, kus andmed ei ole enam päris allikalähedased, aga ei ole veel ka lõppkasutuseks valmis.
+
+Selles praktikumis teeb `intermediate` kiht kolm asja:
+
+- puhastab e-posti võtme võrreldavale kujule;
+- seob põhiallika rikastavate allikatega;
+- valmistab andmed ette lõpptabelisse laadimiseks.
+
 ### Idempotentsus
 
 Idempotentsus tähendab, et sama töö korduv käivitamine annab sama lõpptulemuse.
@@ -282,40 +292,41 @@ See ei ole ainus võimalik lahendus, aga baastasemel on see hästi jälgitav.
 
 ## ETL etapid selles praktikumis
 
-Selle praktikumi töövoog jaguneb kolmeks etapiks.
+Selles praktikumis vaatame `ETL`-i kogu töövoona, mis viib andmed ühest kihist teise.
 
-Praktikumi tervikuna vaadates teed enne põhilise `ETL` skripti käivitamist ka ühe ettevalmistava laadimissammu.
+Põhirajal toimub töö järgmises järjekorras:
 
-Kõigepealt laed `CSV` faili tabelisse `staging.user_status`.
+1. `CSV` fail laetakse tabelisse `staging.user_status`
+2. Pythoni skript loeb kasutajad `API`-st ja laadib need tabelisse `staging.api_users`
+3. `intermediate` vaated puhastavad võtme ja seovad kaks allikat
+4. lõpptulemus laaditakse tabelisse `analytics.user_profile`
 
-Seejärel käivitad Pythoni skripti, mis loeb kasutajad `API`-st ja staatuseandmed staging-tabelist, ühendab need ning kirjutab tulemuse lõpptabelisse.
-
-### `Extract`
+### `Andmete vastuvõtt`
 
 Andmete kättesaamine allikatest.
 
 Selles praktikumis tähendab see:
 
 - kasutajate lugemist `API`-st;
-- staatuseandmete lugemist tabelist `staging.user_status`, kuhu laed `CSV` faili praktikumi 6. sammus.
+- kasutajastaatuste vastuvõttu `CSV` failist.
 
-### `Transform`
+### `Töötlus`
 
 Andmete puhastamine ja ühendamine.
 
 Selles praktikumis tähendab see:
 
-- e-posti aadressi puhastamist;
+- e-posti võtme puhastamist `intermediate` vaadetes;
 - vajalike väljade valimist;
-- `API` ja `CSV` andmete ühendamist ühe e-posti aadressi alusel.
+- `API` ja `CSV` andmete ühendamist ühe e-posti võtme alusel.
 
-### `Load`
+### `Laadimine`
 
 Andmete kirjutamist sihtkohta.
 
 Selles praktikumis tähendab see:
 
-- `API` kasutajate salvestamist tabelisse `staging.api_users`;
+- allikate maandamist `staging` kihti;
 - lõpptulemuse salvestamist tabelisse `analytics.user_profile`.
 
 ## Soovitatud töötee
@@ -326,9 +337,9 @@ Praktikumi tööjärjekord on järgmine.
 2. Loo `.env` fail.
 3. Käivita konteinerid.
 4. Vaata üle põhiraja allikad.
-5. Loo tabelid.
+5. Loo skeemid, tabelid ja vaated.
 6. Laadi `CSV` tabelisse.
-7. Vaata valmis `ETL` skript läbi.
+7. Vaata valmis `ETL` skript ja vaated läbi.
 8. Käivita töö.
 9. Kontrolli tulemust.
 
@@ -380,7 +391,7 @@ Vaikimisi väärtused on:
 - parool `praktikum`
 - andmebaas `praktikum`
 
-Praegu ei ole vaja neid muuta.
+Selles praktikumis ei ole vaja neid muuta.
 
 ## 3. Käivita konteinerid
 
@@ -431,7 +442,7 @@ Sul ei ole vaja kõiki välju detailselt läbi analüüsida. Piisab sellest, kui
 
 Samas kaustas on ka fail [`data/teavituseelistused.json`](./data/teavituseelistused.json), kuid põhirajal me seda veel ei kasuta. See tuleb mängu lisaülesandes.
 
-## 5. Loo skeemid ja tabelid
+## 5. Loo skeemid, tabelid ja vaated
 
 See samm tehakse kõigepealt hosti terminalis, seejärel `psql` sees.
 
@@ -460,10 +471,17 @@ Kontrolli, et tabelid tekkisid:
 \dt analytics.*
 ```
 
+Kontrolli, et `intermediate` vaated tekkisid:
+
+```sql
+\dv intermediate.*
+```
+
 Oodatav tulemus:
 
-- skeemid `staging` ja `analytics`
+- skeemid `staging`, `intermediate` ja `analytics`
 - tabelid `staging.user_status`, `staging.api_users` ja `analytics.user_profile`
+- vaated `intermediate.api_users_normalized`, `intermediate.user_status_normalized` ja `intermediate.user_profile_enriched`
 
 ## 6. Laadi CSV-fail staging-tabelisse
 
@@ -495,24 +513,24 @@ Kui oled kontrolli lõpetanud, välju `psql`-ist:
 \q
 ```
 
-## 7. Vaata valmis ETL-skripti
+## 7. Vaata valmis ETL-skripti ja vaateid
 
 See samm tehakse hostis VS Code'i redaktoris.
 
-Ava fail [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py).
+Ava failid [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py) ja [`scripts/01_create_tables.sql`](./scripts/01_create_tables.sql).
 
-Sa ei pea selles etapis skripti muutma. Eesmärk on saada aru, mida valmis töövoog teeb.
+Sa ei pea selles etapis midagi muutma. Eesmärk on saada aru, kuidas töövoog jaguneb kihtidesse.
 
-Faili kommentaarid aitavad jälgida nii `ETL` loogikat kui ka Pythoni süntaksit.
+Pythoni fail näitab, kuidas `API` andmed vastu võetakse ja `staging` kihti laaditakse. `SQL` fail näitab, kuidas `intermediate` vaated võtmed puhastavad ja allikad seovad.
 
-Vaata läbi neli kohta. Need vastavad `ETL` etappidele nii:
+Vaata läbi neli kohta. Need vastavad töövoo etappidele nii:
 
-1. `Extract`: `fetch_api_users` loeb kasutajad `API`-st
-2. `Extract`: `read_status_lookup` loeb tabelist `staging.user_status` `CSV` failist laetud staatused
-3. `Transform`: `normalize_email` puhastab ühendusvõtme ja `build_final_rows` ühendab andmed
-4. `Load`: `load_api_users` ja `load_final_rows` kirjutavad andmed tabelitesse
+1. `Andmete vastuvõtt`: `fetch_api_users` loeb kasutajad `API`-st
+2. `Laadimine staging kihti`: `load_api_users` laadib `API` kasutajad tabelisse `staging.api_users`
+3. `Töötlus`: vaated `intermediate.api_users_normalized`, `intermediate.user_status_normalized` ja `intermediate.user_profile_enriched` puhastavad võtme ja ühendavad andmed
+4. `Laadimine analytics kihti`: `load_final_rows_from_intermediate` laadib lõpptabeli `intermediate` vaatest
 
-Nii näed kogu töövoogu algusest lõpuni ühes failis.
+Nii näed, et allikad maanduvad kõigepealt `staging` kihti, seos tehakse `intermediate` kihis ja lõpptabel täidetakse alles viimasena.
 
 ## 8. Käivita ETL
 
@@ -527,13 +545,13 @@ docker compose exec python python /scripts/03_integrate_users.py
 Oodatav tulemus on umbes selline:
 
 ```text
-ETL etapp 1/3: Extract
+ETL etapp 1/3: Andmete vastuvõtt ja laadimine staging kihti
 - API-st tuli 10 kasutajat.
-- Staging-tabelist tuli 10 staatusekirjet.
-ETL etapp 2/3: Transform
-- Puhastasin e-posti ja ühendasin andmed 10 kasutaja jaoks.
-ETL etapp 3/3: Load
 - Laadisin staging.api_users tabelisse 10 rida.
+- staging.user_status tabelis on 10 staatusekirjet.
+ETL etapp 2/3: Töötlus
+- Intermediate vaade puhastas e-posti ja ühendas andmed 10 kasutaja jaoks.
+ETL etapp 3/3: Laadimine analytics kihti
 - Laadisin analytics.user_profile tabelisse 10 rida.
 Valmis.
 ```
@@ -565,8 +583,9 @@ Käivita kontrollpäringud:
 Vaata eriti järgmisi küsimusi:
 
 - kas `staging.api_users` sisaldab 10 rida;
+- kas `intermediate.user_profile_enriched` sisaldab 10 rida;
 - kas `analytics.user_profile` sisaldab 10 rida;
-- kas e-posti aadressid on nüüd väikeste tähtedega ja ilma üleliigsete tühikuteta;
+- kas `intermediate` ja `analytics` kihis on e-posti aadressid väikeste tähtedega ja ilma üleliigsete tühikuteta;
 - kas mõnel kasutajal on `account_status` puudu.
 
 See viimane küsimus on oluline. Integreerimisel ei olegi alati igas allikas kõigi kirjete kohta täielikku infot.
@@ -575,6 +594,7 @@ Selles andmestikus on selline puudulik sobitumine ootuspärane.
 
 Oodatav tulemus on järgmine:
 
+- `intermediate.user_profile_enriched` vaates on 10 kasutajat;
 - lõpptabelis on 10 kasutajat;
 - neist 8 kasutajal on `account_status` olemas;
 - 2 kasutajal jääb `account_status` väärtus `NULL`.
@@ -627,8 +647,9 @@ Praktikumi keskel ja lõpus saad end kontrollida nende punktide abil.
 
 ### Pärast tabelite loomist
 
-- `\dn` näitab skeeme `staging` ja `analytics`
+- `\dn` näitab skeeme `staging`, `intermediate` ja `analytics`
 - `\dt staging.*` näitab kahte staging-tabelit
+- `\dv intermediate.*` näitab kolme `intermediate` vaadet
 
 ### Pärast `CSV` laadimist
 
@@ -638,6 +659,7 @@ Praktikumi keskel ja lõpus saad end kontrollida nende punktide abil.
 ### Pärast `ETL` skripti käivitamist
 
 - `staging.api_users` sisaldab 10 rida
+- `intermediate.user_profile_enriched` sisaldab 10 rida
 - `analytics.user_profile` sisaldab 10 rida
 
 ## Levinud vead ja lahendused
@@ -714,16 +736,30 @@ Lahendus:
 - käivita `\i /scripts/01_create_tables.sql`
 - alles siis lae `CSV` ja käivita `ETL` skript
 
+### Sümptom: `relation "intermediate.user_profile_enriched" does not exist`
+
+Tõenäoline põhjus:
+
+- põhiraja skeemid ja vaated ei ole veel loodud
+
+Lahendus:
+
+- ava `psql`
+- käivita `\i /scripts/01_create_tables.sql`
+- kontrolli käsuga `\dv intermediate.*`, et vaated tekkisid
+- käivita siis `ETL` skript uuesti
+
 ### Sümptom: `analytics.user_profile` jääb tühjaks või väljad on `NULL`
 
 Tõenäoline põhjus:
 
-- `CSV` faili pole staging-tabelisse laetud või ühendusvõti ei klapi
+- `CSV` faili pole staging-tabelisse laetud või `staging.api_users` on tühi
 
 Lahendus:
 
 - kontrolli, et käivitasid faili `\i /scripts/02_load_user_status.sql`
-- vaata skriptis `normalize_email`, mil viisil ühendusvõti puhastatakse
+- käivita `ETL` skript uuesti, et `API` andmed jõuaksid tabelisse `staging.api_users`
+- vaata päringuga `SELECT * FROM intermediate.user_profile_enriched ORDER BY user_id;`, kuidas võtmed `intermediate` kihis kokku sobituvad
 
 ### Sümptom: lisaülesandes loodud tabel või vaade tekib skeemis `public` või läheb sama nimega objektiga konflikti
 
@@ -735,9 +771,10 @@ Tõenäoline põhjus:
 Lahendus:
 
 - kasuta praktikumi olemasolevaid skeeme `staging` ja `analytics`
+- kasuta vajadusel ka skeemi `intermediate`
 - kirjuta objekti nimi alati koos skeemiga, näiteks `staging.user_loyalty_snapshot`
 - kontrolli tabeleid käskudega `\dt staging.*` ja `\dt analytics.*`
-- kontrolli vaateid käsuga `\dv staging.*`
+- kontrolli vaateid käskudega `\dv staging.*` ja `\dv intermediate.*`
 
 ## Kokkuvõte
 
@@ -745,12 +782,11 @@ Selles praktikumis tegid läbi esimese töötava andmete integreerimise toru.
 
 Töövoog oli järgmine:
 
-1. lõid skeemid ja tabelid;
-2. laadisid `CSV` faili staging-tabelisse;
-3. lugesid kasutajad `API`-st;
-4. puhastasid ühise võtme;
-5. ühendasid `API` ja `CSV` andmed;
-6. laadisid lõpptulemuse tabelisse.
+1. lõid skeemid, tabelid ja `intermediate` vaated;
+2. laadisid `CSV` faili tabelisse `staging.user_status`;
+3. lugesid kasutajad `API`-st ja laadisid need tabelisse `staging.api_users`;
+4. puhastasid võtme ja ühendasid allikad `intermediate` kihis;
+5. laadisid lõpptulemuse tabelisse `analytics.user_profile`.
 
 See on lihtne, aga päris `ETL` näide. Suuremates süsteemides on samme rohkem, kuid põhiloogika on sama.
 
@@ -764,6 +800,12 @@ Lisaülesannetes on juhiseid vähem kui põhirajal. Nendes ülesannetes saad ole
 
 Selles ülesandes kasutad ka faili [`data/teavituseelistused.json`](./data/teavituseelistused.json).
 
+Ka kolme allika variandis jääb töövoo loogika samaks:
+
+- allikad maanduvad esmalt `staging` kihti;
+- puhastus ja ühendamine toimub `intermediate` vaates;
+- lõpptulemus laetakse tabelisse `analytics.user_profile`.
+
 Tee nii:
 
 1. valmista andmebaas ette `psql` sees:
@@ -771,6 +813,12 @@ Tee nii:
 ```sql
 \i /scripts/lisa_01_prepare_preferences.sql
 ```
+
+See skript teeb kolm asja:
+
+- loob tabeli `staging.notification_preferences`;
+- lisab lõpptabelisse uued väljad;
+- laiendab `intermediate.user_profile_enriched` vaadet nii, et see ühendaks ka `JSON` allika.
 
 2. tee mallist oma tööfail:
 
@@ -793,7 +841,7 @@ Copy-Item scripts/lisa_03_integrate_users_template.py scripts/lisa_03_integrate_
 docker compose exec python python /scripts/lisa_03_integrate_users.py
 ```
 
-Selles lisaülesandes teed ise sama töövoo järgmise sammu läbi: liigud kahelt allikalt kolme allikani.
+Selles lisaülesandes teed ise sama töövoo järgmise sammu läbi: liigud kahelt allikalt kolme allikani, aga hoiad kihid endiselt eraldi.
 
 Pärast oma katset võid võrrelda tulemust failiga:
 
@@ -801,17 +849,19 @@ Pärast oma katset võid võrrelda tulemust failiga:
 
 ### Lisaülesanne 2: lisa telefoninumber lõpptabelisse
 
-Praegu ei vii põhiskript `API` vastusest telefoninumbrit lõpptabelisse.
+Põhiskript ei vii `API` vastusest telefoninumbrit veel lõpptabelisse.
 
 Tee nii:
 
+- lisa väli `phone` tabelisse `staging.api_users`;
 - lisa väli `phone` tabelisse `analytics.user_profile`;
-- lisa telefoninumber skripti `fetch_api_users` tulemustesse;
+- lisa telefoninumber `API` andmete hulgast `staging` kihti;
+- lisa telefoninumber `intermediate` vaatesse;
 - lae see ka lõpptabelisse.
 
 Vihje: selles ülesandes on mõistlik täiendada olemasolevat tabelit käsuga `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, mitte luua kogu tabelit uuesti.
 
-Vihje: kui jätkad pärast lisaülesannet 1, siis muuda faili [`scripts/lisa_03_integrate_users.py`](./scripts/lisa_03_integrate_users.py). Kui teed seda ülesannet eraldi, võid sama muudatuse teha ka failis [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py). Tabeli struktuuri muudatus tee SQL-iga, andmete lugemise ja laadimise loogika muuda Pythoni skriptis.
+Vihje: kui teed seda põhirajal, muuda faile [`scripts/01_create_tables.sql`](./scripts/01_create_tables.sql) ja [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py). Kui jätkad pärast lisaülesannet 1, muuda lisaks faili [`scripts/lisa_01_prepare_preferences.sql`](./scripts/lisa_01_prepare_preferences.sql) ja skripti [`scripts/lisa_03_integrate_users.py`](./scripts/lisa_03_integrate_users.py), et uus väli jõuaks ka `intermediate` vaatest lõpptabelisse.
 
 ### Lisaülesanne 3: märgista kasutajad, kelle kohta osa lisainfost puudub
 
@@ -821,7 +871,7 @@ Loo lõpptabelisse väli `has_missing_additional_data`, mis on `true`, kui kasut
 
 See ülesanne aitab märgata, millise kasutaja kohta ei ole kõiki täiendavaid andmeid kätte saadud.
 
-Vihje: siin kehtib sama mõte nagu lisaülesandes 2.
+Vihje: arvuta see väli `intermediate.user_profile_enriched` vaates ja lae see sealt edasi lõpptabelisse. Kui jätkad pärast lisaülesannet 1, siis muuda failis [`scripts/lisa_01_prepare_preferences.sql`](./scripts/lisa_01_prepare_preferences.sql) olevat vaadet, lisa väli tabelisse `analytics.user_profile` ja uuenda ka skripti [`scripts/lisa_03_integrate_users.py`](./scripts/lisa_03_integrate_users.py), et uus väli lõpptabelisse laaditaks.
 
 ### Lisaülesanne 4: tee lihtne kokkuvõttepäring
 
@@ -836,28 +886,27 @@ Võid teha selle otse `psql` sees või panna uude faili `scripts/05_summary_quer
 
 ### Lisaülesanne 5: kontrolli, kas ühendusvõtmed allikate vahel päriselt sobituvad
 
-Põhirajal näed lõpptulemusest, et kahel kasutajal jääb `account_status` puudu. Töövoog ise ei anna aga praegu automaatselt teada, millised võtmed jäid sobitumata.
+Põhirajal näed lõpptulemusest, et kahel kasutajal jääb `account_status` puudu. Töövoog ise ei anna aga automaatselt teada, millised võtmed jäid sobitumata.
 
-Selles ülesandes lisad `ETL` skripti eraldi kontrolli, mis võrdleb eri allikate e-posti võtmeid enne lõpptabeli laadimist.
+Selles ülesandes kontrollid võtmeid siis, kui allikad on juba tabelitena `staging` kihis olemas.
 
 See ülesanne eeldab, et oled põhiraja läbi teinud.
 
 Tee nii:
 
-1. vali, kumba skripti tahad täiendada:
+1. veendu, et vajalikud `staging` tabelid oleksid täidetud:
 
-- kui jätkad põhirajalt, muuda faili [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py)
-- kui jätkad pärast lisaülesannet 1, muuda faili [`scripts/lisa_03_integrate_users.py`](./scripts/lisa_03_integrate_users.py)
+- põhirajal käivita enne fail [`scripts/03_integrate_users.py`](./scripts/03_integrate_users.py)
+- kui kasutad kolme allika varianti, käivita enne fail [`scripts/lisa_03_integrate_users.py`](./scripts/lisa_03_integrate_users.py)
 
 2. ava fail [`scripts/lisa_04_check_join_keys.py`](./scripts/lisa_04_check_join_keys.py)
 
-See fail sisaldab valmis abifunktsioone, mis:
+See skript teeb järgmise kontrolli:
 
-- koguvad mõlema allika võtmed ühe ja sama normaliseerimisreegli järgi;
-- võrdlevad, millised võtmed sobituvad ja millised mitte;
-- prindivad lühikese raporti.
-
-Hea praktika on siin see, et võtmete kontroll kasutab sama funktsiooni `normalize_email`, mida kasutad ka päris ühendamisel. Nii ei teki olukorda, kus kontroll ja päris töövoog kasutavad eri reegleid.
+- loeb võtmed otse `staging` tabelitest;
+- puhastab need ühtemoodi;
+- võrdleb, millised võtmed sobituvad ja millised mitte;
+- prindib lühikese raporti.
 
 Selles praktikumis käsitleme `API` allikat põhiallikana. Lõpptabelis on üks rida iga `API` kasutaja kohta ning `CSV` ja `JSON` annavad sellele reale lisavälju juurde.
 
@@ -881,60 +930,16 @@ Kui projektis ei ole üht selget põhiallikat ja mitu allikat kirjeldavad sama n
 
 Selles praktikumis me seda keerukamat varianti ei kasuta. Siin on loogiline jada järgmine: võta põhiallikas, võrdle seda ühe rikastava allikaga, lisa järgmine rikastav allikas ja võrdle jälle põhiallikaga.
 
-3. lisa valitud skripti impordirida teiste importide juurde.
-
-Põhiraja skripti puhul:
-
-```python
-from lisa_04_check_join_keys import print_key_check_report
-```
-
-Kui kasutad kolme allika skripti, lisa see import:
-
-```python
-from lisa_04_check_join_keys import print_three_source_key_report
-```
-
-4. lisa `main()` funktsioonis pärast rida `status_lookup = read_status_lookup(conn)` sobiv väljakutse.
-
-Põhiraja skripti puhul:
-
-```python
-        print_key_check_report(
-            api_users=api_users,
-            status_lookup=status_lookup,
-            normalize_key=normalize_email,
-        )
-```
-
-Kui kasutad kolme allika skripti, lisa pärast rida `status_lookup = read_status_lookup(conn)` järgmine väljakutse:
-
-```python
-        print_three_source_key_report(
-            api_users=api_users,
-            status_lookup=status_lookup,
-            preferences=preferences,
-            normalize_key=normalize_email,
-        )
-```
-
-5. käivita sama skript uuesti:
-
-Kui muutsid põhiraja skripti:
+3. käivita kontrollskript hosti terminalis:
 
 ```bash
-docker compose exec python python /scripts/03_integrate_users.py
+docker compose exec python python /scripts/lisa_04_check_join_keys.py
 ```
 
-Kui muutsid lisaülesande 1 skripti:
-
-```bash
-docker compose exec python python /scripts/lisa_03_integrate_users.py
-```
-
-Põhiraja oodatav tulemus sisaldab lisaks senistele ridadele ka võtmekontrolli raportit:
+Põhiraja oodatav tulemus on järgmine:
 
 ```text
+- Võrdlus: API ja CSV
 - Sobitunud e-posti võtmeid: 8
 - API poolel ilma CSV vasteta: 2
   API ainult: maxime_nienow@alicia.info
@@ -945,12 +950,12 @@ Põhiraja oodatav tulemus sisaldab lisaks senistele ridadele ka võtmekontrolli 
 
 See kontroll ei paranda kirjavigu automaatselt. Selle eesmärk on teha sobitumata võtmed nähtavaks, et saaksid need eraldi üle vaadata.
 
-Kui kasutad kolme allika skripti, näed kahte järjestikust raportit: kõigepealt `API` ja `CSV` võrdlust, seejärel `API` ja `JSON` võrdlust.
+Kui kasutad kolme allika varianti, näed samas skriptis kahte järjestikust raportit: kõigepealt `API` ja `CSV` võrdlust, seejärel `API` ja `JSON` võrdlust.
 
 Kolme allika variandis on teise võrdluse oodatav tulemus järgmine:
 
 ```text
-Võrdlus 2: API ja JSON
+- Võrdlus: API ja JSON
 - Sobitunud e-posti võtmeid: 7
 - API poolel ilma JSON vasteta: 3
   API ainult: chaim_mcdermott@dana.io
